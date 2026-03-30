@@ -43,14 +43,12 @@ LOG_DIR.mkdir(exist_ok=True)
 
 def setup_logging():
     fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    logging.basicConfig(
-        level=logging.INFO,
-        format=fmt,
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(LOG_DIR / "scheduler.log"),
-        ],
-    )
+    # Use stdout only — systemd/caller can redirect to file.
+    # If OPENTRADE_LOG_DIR is set AND we're not a TTY, also write to file.
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    if not sys.stdout.isatty():
+        handlers.append(logging.FileHandler(LOG_DIR / "scheduler.log"))
+    logging.basicConfig(level=logging.INFO, format=fmt, handlers=handlers)
 
 log = logging.getLogger("opentrade.scheduler")
 
@@ -287,8 +285,14 @@ def cmd_daemon(args):
         log.warning("No live sources found — nothing to schedule")
         sys.exit(0)
 
+    manifest = load_manifest()
+
     for src, cfg in sources:
-        freq = cfg.get("update_frequency", "weekly")
+        # manifest.yaml schedule overrides config.yaml update_frequency
+        freq = (
+            manifest.get("sources", {}).get(src, {}).get("schedule")
+            or cfg.get("update_frequency", "weekly")
+        )
         trigger_type, trigger_kwargs = FREQ_MAP.get(freq, FREQ_MAP["weekly"])
 
         def make_job(s=src, c=cfg):
