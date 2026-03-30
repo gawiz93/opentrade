@@ -1,21 +1,121 @@
-name: Daily Ingestion
+name: Scheduled Ingestion
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 3 * * *'   # Daily at 03:00 UTC — each source respects its own frequency
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'Specific source to run (e.g. UN/Comtrade) — leave blank to run all live sources'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (fetch + validate, no DB write)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
 
 jobs:
-  ingest:
+  # ── Step 1: Discover which sources to run ──────────────────────────────────
+  discover:
+    name: Discover live sources
     runs-on: ubuntu-latest
+    outputs:
+      sources: ${{ steps.list.outputs.sources }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt
-      - name: Run ingestion
+
+      - run: pip install pyyaml
+
+      - name: List live sources
+        id: list
+        run: |
+          python - <<'EOF'
+          import yaml, json, os, sys
+
+          manifest = yaml.safe_load(open("manifest.yaml"))
+          override = os.getenv("SOURCE_OVERRIDE", "").strip()
+
+          if override:
+              sources = [override]
+          else:
+              sources = [
+                  s for s, v in manifest.get("sources", {}).items()
+                  if v.get("status") == "live"
+              ]
+
+          if not sources:
+              print("No live sources found", file=sys.stderr)
+              sources = []
+
+          # Write to GITHUB_OUTPUT
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"sources={json.dumps(sources)}\n")
+
+          print(f"Discovered {len(sources)} source(s): {sources}")
+          EOF
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
-        run: python runner.py run UN/Comtrade --ingest
+          SOURCE_OVERRIDE: ${{ github.event.inputs.source }}
+
+  # ── Step 2: Run each source in parallel ───────────────────────────────────
+  ingest:
+    name: Ingest ${{ matrix.source }}
+    needs: discover
+    if: ${{ needs.discover.outputs.sources != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        source: ${{ fromJson(needs.discover.outputs.sources) }}
+      fail-fast: false   # Don't cancel other sources if one fails
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run ${{ matrix.source }}
+        env:
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          COMTRADE_API_KEY:  ${{ secrets.COMTRADE_API_KEY }}
+          US_CENSUS_API_KEY: ${{ secrets.US_CENSUS_API_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python runner.py run "${{ matrix.source }}"
+          else
+            python runner.py run "${{ matrix.source }}" --ingest
+          fi
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.source == 'UN/Comtrade' && 'UN-Comtrade' || matrix.source }}
+          path: logs/
+          retention-days: 7
+
+  # ── Step 3: Summary ────────────────────────────────────────────────────────
+  summary:
+    name: Ingestion summary
+    needs: [discover, ingest]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report results
+        run: |
+          echo "## Ingestion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Source | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "Sources: ${{ needs.discover.outputs.sources }}" >> $GITHUB_STEP_SUMMARY
+          echo "Status: ${{ needs.ingest.result }}" >> $GITHUB_STEP_SUMMARY

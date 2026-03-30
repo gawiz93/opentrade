@@ -1,0 +1,148 @@
+name: Validate Sources
+
+on:
+  pull_request:
+    paths:
+      - 'sources/**'
+      - 'common/**'
+      - 'runner.py'
+  push:
+    branches: [main]
+    paths:
+      - 'sources/**'
+      - 'common/**'
+  workflow_dispatch:
+
+jobs:
+  # ── Detect which sources changed ──────────────────────────────────────────
+  detect-changes:
+    name: Detect changed sources
+    runs-on: ubuntu-latest
+    outputs:
+      sources: ${{ steps.detect.outputs.sources }}
+      all: ${{ steps.detect.outputs.all }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyyaml
+
+      - name: Detect changed sources
+        id: detect
+        run: |
+          python - <<'EOF'
+          import subprocess, json, os, yaml
+
+          # Get changed files
+          result = subprocess.run(
+              ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
+              capture_output=True, text=True
+          )
+          changed = result.stdout.strip().split("\n")
+
+          # Find affected sources
+          sources = set()
+          all_sources_changed = False
+
+          for f in changed:
+              if f.startswith("sources/"):
+                  parts = f.split("/")
+                  if len(parts) >= 3:
+                      sources.add(f"{parts[1]}/{parts[2]}")
+              elif f.startswith("common/") or f == "runner.py":
+                  all_sources_changed = True
+
+          # If common/ changed, validate all sources
+          if all_sources_changed:
+              manifest = yaml.safe_load(open("manifest.yaml"))
+              sources = [
+                  s for s, v in manifest.get("sources", {}).items()
+                  if v.get("status") == "live"
+              ]
+          else:
+              sources = list(sources)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"sources={json.dumps(sources)}\n")
+              f.write(f"all={'true' if all_sources_changed else 'false'}\n")
+
+          print(f"Sources to validate: {sources}")
+          EOF
+
+  # ── Validate each changed source ─────────────────────────────────────────
+  validate:
+    name: Validate ${{ matrix.source }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.sources != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        source: ${{ fromJson(needs.detect-changes.outputs.sources) }}
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate sample data for ${{ matrix.source }}
+        run: python runner.py validate "${{ matrix.source }}"
+
+      - name: Dry-run ${{ matrix.source }}
+        run: python runner.py run "${{ matrix.source }}"
+        timeout-minutes: 5
+        continue-on-error: true   # Don't fail PR if API is rate-limited
+
+  # ── Check manifest ────────────────────────────────────────────────────────
+  check-manifest:
+    name: Check manifest.yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyyaml
+
+      - name: Validate manifest.yaml
+        run: |
+          python - <<'EOF'
+          import yaml, sys
+          from pathlib import Path
+
+          manifest = yaml.safe_load(open("manifest.yaml"))
+          sources_dir = Path("sources")
+          errors = []
+
+          for src, meta in manifest.get("sources", {}).items():
+              src_path = sources_dir / src.replace("/", "/")
+              if not (src_path / "bootstrap.py").exists():
+                  errors.append(f"MISSING bootstrap.py: {src}")
+              if not (src_path / "config.yaml").exists():
+                  errors.append(f"MISSING config.yaml: {src}")
+              if "description" not in meta:
+                  errors.append(f"MISSING description: {src}")
+              if "status" not in meta:
+                  errors.append(f"MISSING status: {src}")
+
+          if errors:
+              print("Manifest errors:")
+              for e in errors:
+                  print(f"  ✗ {e}")
+              sys.exit(1)
+          else:
+              print(f"✓ manifest.yaml valid — {len(manifest.get('sources', {}))} sources")
+          EOF

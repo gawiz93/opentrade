@@ -1,37 +1,52 @@
 # OpenTrade Source Manifest
 # Master inventory of all data sources.
-# Updated automatically by runner.py after each successful run.
+# Updated automatically by runner.py and scheduler.py after each successful run.
+#
+# status values:  live | planned | partial | blocked
+# schedule:       daily | weekly | monthly | annual
+#   → scheduler.py maps these to cron triggers (see docs/scheduling.md)
 
 sources:
   UN/Comtrade:
     status: live
     description: UN Comtrade — global trade flows, 200+ countries, 1962–present
+    schedule: weekly           # Annual dataset; weekly check for monthly updates
     records: null
     last_run: null
+    last_status: null
 
   WB/WITS:
     status: live
-    description: World Bank WITS — tariff rates and trade indicators
+    description: World Bank WITS — tariff rates and trade indicators, 170+ countries
+    schedule: weekly           # Annual tariff updates
     records: null
     last_run: null
+    last_status: null
 
   US/Census:
     status: planned
-    description: US Census Bureau — detailed US import/export statistics
+    description: US Census Bureau — detailed US import/export statistics, 1992–present
+    schedule: monthly          # Monthly trade release
     records: null
     last_run: null
+    last_status: null
 
   EU/Eurostat:
     status: planned
     description: Eurostat — EU member state trade statistics
+    schedule: monthly          # Monthly Comext release
     records: null
     last_run: null
+    last_status: null
 
   WTO/TariffData:
     status: planned
     description: WTO Tariff Download Facility — applied and MFN tariff rates
+    schedule: annual           # Annual tariff schedule
     records: null
     last_run: null
+    last_status: null
 
-# Add your country's trade data source here!
+# ── Add your country's trade data source below ────────────────────────────────
 # Use: python runner.py add CC/SourceName
+# Docs: docs/adding-a-source.md

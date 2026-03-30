@@ -6,8 +6,10 @@ Usage:
   python runner.py status                     # Show all sources + status
   python runner.py list                       # List all sources
   python runner.py sample UN/Comtrade         # Print 5 sample records
-  python runner.py run UN/Comtrade            # Run a source (dry-run by default)
+  python runner.py run UN/Comtrade            # Dry-run a source
   python runner.py run UN/Comtrade --ingest   # Run + write to DB
+  python runner.py run-all                    # Dry-run all live sources
+  python runner.py run-all --ingest           # Run all live sources + write to DB
   python runner.py validate UN/Comtrade       # Validate sample records
   python runner.py next                       # Show what needs work
   python runner.py add CC/SourceName          # Scaffold a new source
@@ -133,20 +135,36 @@ def cmd_sample(args):
                 break
 
 
-def cmd_run(args):
-    src = args.source
+def _update_manifest(src: str, records: int, errors: int, status: str = "success"):
+    """Update manifest.yaml with run results."""
+    from datetime import datetime, timezone
+    manifest = load_manifest()
+    if "sources" not in manifest:
+        manifest["sources"] = {}
+    if src not in manifest["sources"]:
+        manifest["sources"][src] = {}
+    manifest["sources"][src]["last_run"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    manifest["sources"][src]["last_status"] = status
+    if records:
+        manifest["sources"][src]["records"] = records
+    if errors:
+        manifest["sources"][src]["last_errors"] = errors
+    save_manifest(manifest)
+
+
+def _run_one_source(src: str, ingest: bool = False, verbose: bool = True) -> tuple[int, int]:
+    """Run a single source. Returns (records, errors)."""
     cls = load_source_class(src)
     cfg = load_config(src)
 
     if not cls:
-        print(f"{RED}No bootstrap.py found for {src}{RESET}")
-        sys.exit(1)
+        if verbose:
+            print(f"{RED}No bootstrap.py found for {src}{RESET}")
+        return 0, 1
 
     instance = cls(config=cfg)
     count = 0
     errors = 0
-
-    print(f"\n{BOLD}Running {src}{RESET} {'(dry-run)' if not args.ingest else '(ingesting)'}\n")
 
     from common.storage import Storage
     from common.validators import validate_trade_record, validate_tariff_record
@@ -164,21 +182,71 @@ def cmd_run(args):
             errs = validate_tariff_record(record.__dict__)
 
         if errs:
-            print(f"{RED}  Validation error: {errs}{RESET}")
+            if verbose:
+                print(f"{RED}  Validation error: {errs}{RESET}")
             errors += 1
             continue
 
-        if args.ingest:
+        if ingest:
             storage.write(record, cfg.get("source_id", src.replace("/", "_")))
 
         count += 1
-        if count % 1000 == 0:
+        if count % 1000 == 0 and verbose:
             print(f"  {count} records processed...")
 
-    print(f"\n{GREEN}✓ {count} records{RESET} | {RED}{errors} errors{RESET}")
-
-    if args.ingest:
+    if ingest:
         _write_to_db(src, cfg, storage)
+
+    _update_manifest(src, count, errors)
+    return count, errors
+
+
+def cmd_run(args):
+    src = args.source
+    cfg = load_config(src)
+
+    if not load_source_class(src):
+        print(f"{RED}No bootstrap.py found for {src}{RESET}")
+        sys.exit(1)
+
+    print(f"\n{BOLD}Running {src}{RESET} {'(dry-run)' if not args.ingest else '(ingesting)'}\n")
+    count, errors = _run_one_source(src, ingest=args.ingest, verbose=True)
+    print(f"\n{GREEN}✓ {count} records{RESET} | {RED}{errors} errors{RESET}")
+    if args.ingest:
+        print(f"{CYAN}manifest.yaml updated{RESET}")
+
+
+def cmd_run_all(args):
+    """Run all live sources."""
+    sources = []
+    for src in all_sources():
+        cfg = load_config(src)
+        status = load_manifest().get("sources", {}).get(src, {}).get("status") or cfg.get("status", "planned")
+        if status == "live":
+            sources.append(src)
+
+    if not sources:
+        print(f"{YELLOW}No live sources found.{RESET}")
+        return
+
+    print(f"\n{BOLD}Running all {len(sources)} live sources{RESET} {'(dry-run)' if not args.ingest else '(ingesting)'}\n")
+    total_records = 0
+    total_errors = 0
+    results = []
+
+    for src in sources:
+        print(f"{CYAN}▶ {src}{RESET}")
+        count, errors = _run_one_source(src, ingest=args.ingest, verbose=False)
+        colour = GREEN if errors == 0 else YELLOW
+        print(f"  {colour}✓ {count} records, {errors} errors{RESET}")
+        total_records += count
+        total_errors += errors
+        results.append((src, count, errors))
+
+    print(f"\n{BOLD}{'─'*50}{RESET}")
+    print(f"{GREEN}Total: {total_records} records{RESET} | {RED}{total_errors} errors{RESET} across {len(sources)} sources")
+    if args.ingest:
+        print(f"{CYAN}manifest.yaml updated for all sources{RESET}")
 
 
 def cmd_validate(args):
@@ -321,6 +389,9 @@ def main():
     p.add_argument("source", help="e.g. UN/Comtrade")
     p.add_argument("--ingest", action="store_true", help="Write to DB (default: dry-run)")
 
+    p = sub.add_parser("run-all",  help="Run all live sources")
+    p.add_argument("--ingest", action="store_true", help="Write to DB (default: dry-run)")
+
     p = sub.add_parser("validate", help="Validate sample records")
     p.add_argument("source", help="e.g. UN/Comtrade")
 
@@ -334,6 +405,7 @@ def main():
         "list":     cmd_list,
         "sample":   cmd_sample,
         "run":      cmd_run,
+        "run-all":  cmd_run_all,
         "validate": cmd_validate,
         "next":     cmd_next,
         "add":      cmd_add,

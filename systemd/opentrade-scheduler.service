@@ -1,0 +1,26 @@
+[Unit]
+Description=OpenTrade Scheduler — automatic data ingestion daemon
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/opentrade
+Environment=OPENTRADE_LOG_DIR=/opt/opentrade/logs
+
+# Set your credentials here (or use a .env file and EnvironmentFile=)
+# EnvironmentFile=/opt/opentrade/.env
+# Environment=DATABASE_URL=postgresql://opentrade:opentrade@localhost:5432/opentrade
+# Environment=COMTRADE_API_KEY=your_key_here
+# Environment=US_CENSUS_API_KEY=your_key_here
+
+ExecStart=/usr/bin/python3 /opt/opentrade/scheduler.py
+Restart=on-failure
+RestartSec=60
+
+StandardOutput=append:/opt/opentrade/logs/scheduler.log
+StandardError=append:/opt/opentrade/logs/scheduler.log
+
+[Install]
+WantedBy=multi-user.target
