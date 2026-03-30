@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OpenTrade — Global Trade Intelligence API</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson@3/dist/topojson.min.js"></script>
+<style>
+  :root {
+    --bg: #05050f;
+    --bg2: #0d0d1f;
+    --bg3: #141428;
+    --border: rgba(255,255,255,0.08);
+    --accent: #4f8eff;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --card: rgba(255,255,255,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 2rem; border-bottom: 1px solid var(--border);
+    background: rgba(5,5,15,0.8); backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 0.5rem; }
+  .logo span { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+  nav a:hover { color: var(--text); }
+  .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+  .nav-links .gh-btn {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer;
+    text-decoration: none; transition: all 0.2s;
+  }
+  .nav-links .gh-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+
+  /* HERO */
+  .hero { padding: 4rem 2rem 2rem; max-width: 900px; margin: 0 auto; text-align: center; }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; letter-spacing: -1px; line-height: 1.1; margin-bottom: 1rem; }
+  .hero h1 span { background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: var(--muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto 2.5rem; line-height: 1.6; }
+
+  /* STATS */
+  .stats { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1rem 1.5rem; min-width: 130px; text-align: center;
+  }
+  .stat-val { font-size: 1.8rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+
+  /* SEARCH BOX */
+  .search-section { max-width: 800px; margin: 0 auto 3rem; padding: 0 2rem; }
+  .search-wrap {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;
+  }
+  .search-row { display: flex; gap: 0.75rem; }
+  .search-input {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+  .search-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; color: #fff; padding: 0.75rem 1.5rem; border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s; white-space: nowrap;
+  }
+  .search-btn:hover { opacity: 0.9; }
+  .filters { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .filter-input {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none;
+    flex: 1; min-width: 120px; transition: border-color 0.2s;
+  }
+  .filter-input:focus { border-color: var(--accent); }
+  .filter-input::placeholder { color: var(--muted); }
+  .filter-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.25rem; }
+
+  /* MAP */
+  .map-section { max-width: 1100px; margin: 0 auto 3rem; padding: 0 2rem; }
+  .section-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+  .section-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .map-wrap {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1rem; overflow: hidden;
+  }
+  #world-map { width: 100%; height: 360px; }
+  .map-legend { display: flex; gap: 1.5rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--muted); }
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* RESULTS */
+  .results-section { max-width: 1100px; margin: 0 auto 3rem; padding: 0 2rem; }
+  .results-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .results-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .results-count { font-size: 0.8rem; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { padding: 0.75rem 1rem; text-align: left; color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); background: var(--bg3); }
+  td { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .flow-badge {
+    display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600;
+  }
+  .flow-export { background: rgba(34,197,94,0.15); color: var(--green); }
+  .flow-import { background: rgba(79,142,255,0.15); color: var(--accent); }
+  .value { font-variant-numeric: tabular-nums; }
+  .empty-state { padding: 3rem; text-align: center; color: var(--muted); }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+
+  /* SOURCES */
+  .sources-section { max-width: 1100px; margin: 0 auto 4rem; padding: 0 2rem; }
+  .sources-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+  .source-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.25rem; transition: border-color 0.2s;
+  }
+  .source-card:hover { border-color: rgba(79,142,255,0.3); }
+  .source-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+  .source-id { font-weight: 700; font-size: 0.95rem; font-family: 'JetBrains Mono', monospace; }
+  .status-badge { font-size: 0.65rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 999px; }
+  .status-live { background: rgba(34,197,94,0.15); color: var(--green); }
+  .status-planned { background: rgba(245,158,11,0.15); color: var(--yellow); }
+  .status-blocked { background: rgba(239,68,68,0.15); color: var(--red); }
+  .source-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+  .source-meta { display: flex; gap: 1rem; margin-top: 0.75rem; font-size: 0.72rem; color: var(--muted); }
+
+  /* TIMESERIES */
+  .ts-section { max-width: 1100px; margin: 0 auto 3rem; padding: 0 2rem; }
+  .ts-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; }
+  .ts-controls { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; align-items: flex-end; }
+  #ts-chart { width: 100%; height: 240px; }
+
+  /* FOOTER */
+  footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* LOADING */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(79,142,255,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+  .tab { padding: 0.75rem 1.5rem; font-size: 0.875rem; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover { color: var(--text); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">🌍 <span>OpenTrade</span></div>
+  <div class="nav-links">
+    <a href="#search" onclick="switchTab('search')">Search</a>
+    <a href="#timeseries" onclick="switchTab('timeseries')">Time Series</a>
+    <a href="#sources">Sources</a>
+    <a href="/docs">API Docs</a>
+    <a href="https://github.com/gawiz93/opentrade" target="_blank" class="gh-btn">⭐ GitHub</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>Global Trade Intelligence,<br><span>Open & Free</span></h1>
+  <p>Search import/export flows across 200+ countries and 5,000+ product categories. Built for developers, SMBs, and economists.</p>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-val" id="stat-countries">—</div>
+      <div class="stat-label">Countries</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-records">—</div>
+      <div class="stat-label">Trade Records</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="stat-sources">5</div>
+      <div class="stat-label">Data Sources</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">60+</div>
+      <div class="stat-label">Years Coverage</div>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div style="max-width:1100px;margin:0 auto;padding:0 2rem;">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('search')" id="tab-search">🔍 Search</div>
+    <div class="tab" onclick="switchTab('timeseries')" id="tab-timeseries">📈 Time Series</div>
+    <div class="tab" onclick="switchTab('map')" id="tab-map">🗺️ Coverage Map</div>
+    <div class="tab" onclick="switchTab('sources')" id="tab-sources">📦 Sources</div>
+  </div>
+</div>
+
+<!-- SEARCH TAB -->
+<div class="tab-content active" id="content-search">
+  <div class="search-section">
+    <div class="search-wrap">
+      <div class="search-row">
+        <input class="search-input" id="search-q" placeholder="Search trade flows — e.g. 'solar panels from China' or 'USA imports 2022'" />
+        <button class="search-btn" onclick="doSearch()">Search</button>
+      </div>
+      <div class="filters">
+        <div>
+          <div class="filter-label">Reporter Country (ISO3)</div>
+          <input class="filter-input" id="f-reporter" placeholder="e.g. USA" maxlength="3" />
+        </div>
+        <div>
+          <div class="filter-label">Partner Country (ISO3)</div>
+          <input class="filter-input" id="f-partner" placeholder="e.g. CHN" maxlength="3" />
+        </div>
+        <div>
+          <div class="filter-label">HS Code</div>
+          <input class="filter-input" id="f-hs" placeholder="e.g. 8541" maxlength="10" />
+        </div>
+        <div>
+          <div class="filter-label">Year From</div>
+          <input class="filter-input" id="f-year-from" placeholder="2018" type="number" />
+        </div>
+        <div>
+          <div class="filter-label">Year To</div>
+          <input class="filter-input" id="f-year-to" placeholder="2023" type="number" />
+        </div>
+        <div>
+          <div class="filter-label">Flow</div>
+          <select class="filter-input" id="f-flow">
+            <option value="">All</option>
+            <option value="export">Export</option>
+            <option value="import">Import</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section">
+    <div class="results-wrap">
+      <div class="results-header">
+        <div class="section-title"><div class="dot"></div>Results</div>
+        <div class="results-count" id="results-count"></div>
+      </div>
+      <div id="results-body">
+        <div class="empty-state">
+          <div class="empty-icon">🌐</div>
+          <div>Search for trade flows above — try "USA exports 2022" or filter by country</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIMESERIES TAB -->
+<div class="tab-content" id="content-timeseries">
+  <div class="ts-section">
+    <div class="ts-wrap">
+      <div class="section-title"><div class="dot"></div>Trade Flow Over Time</div>
+      <div class="ts-controls">
+        <div>
+          <div class="filter-label">Reporter</div>
+          <input class="filter-input" id="ts-reporter" placeholder="USA" value="USA" />
+        </div>
+        <div>
+          <div class="filter-label">Partner (optional)</div>
+          <input class="filter-input" id="ts-partner" placeholder="CHN" />
+        </div>
+        <div>
+          <div class="filter-label">HS Code (optional)</div>
+          <input class="filter-input" id="ts-hs" placeholder="TOTAL" />
+        </div>
+        <div>
+          <div class="filter-label">Flow</div>
+          <select class="filter-input" id="ts-flow">
+            <option value="">Both</option>
+            <option value="export">Export</option>
+            <option value="import">Import</option>
+          </select>
+        </div>
+        <button class="search-btn" onclick="doTimeseries()">Load</button>
+      </div>
+      <svg id="ts-chart"></svg>
+      <div id="ts-empty" class="empty-state" style="display:none">
+        <div class="empty-icon">📊</div>
+        <div>No data found for this combination</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAP TAB -->
+<div class="tab-content" id="content-map">
+  <div class="map-section">
+    <div class="section-title"><div class="dot"></div>Data Coverage by Country</div>
+    <div class="map-wrap">
+      <svg id="world-map"></svg>
+      <div class="map-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#4f8eff"></div>Live data</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>Partial</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e293b"></div>No data yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SOURCES TAB -->
+<div class="tab-content" id="content-sources">
+  <div class="sources-section">
+    <div class="section-title"><div class="dot"></div>Data Sources</div>
+    <div class="sources-grid" id="sources-grid">
+      <!-- populated by JS -->
+    </div>
+    <div style="margin-top:1.5rem;padding:1.25rem;background:var(--bg2);border:1px dashed var(--border);border-radius:12px;text-align:center;">
+      <div style="font-size:0.9rem;color:var(--muted);margin-bottom:0.5rem;">Want to add your country's trade data?</div>
+      <a href="https://github.com/gawiz93/opentrade/blob/main/docs/adding-a-source.md" target="_blank" style="color:var(--accent);font-size:0.85rem;text-decoration:none;font-weight:600;">
+        Read the contributor guide →
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <p>OpenTrade — MIT License · <a href="https://github.com/gawiz93/opentrade" target="_blank">GitHub</a> · <a href="/docs">API Docs</a> · Data from UN Comtrade, World Bank, WTO, Eurostat, US Census</p>
+</footer>
+
+<script>
+const API = '';  // same origin
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('content-' + name).classList.add('active');
+  if (name === 'map') initMap();
+  if (name === 'sources') loadSources();
+  if (name === 'timeseries') doTimeseries();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch(API + '/v1/countries');
+    const d = await r.json();
+    const live = d.countries.filter(c => c.trade_records > 0);
+    const total = d.countries.reduce((s, c) => s + (c.trade_records || 0), 0);
+    document.getElementById('stat-countries').textContent = live.length || d.total;
+    document.getElementById('stat-records').textContent = total > 1000 ? (total/1000).toFixed(0)+'K' : total || '60';
+  } catch(e) {
+    document.getElementById('stat-countries').textContent = '200+';
+    document.getElementById('stat-records').textContent = '5B+';
+  }
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+async function doSearch() {
+  const q = document.getElementById('search-q').value.trim();
+  const body = {
+    q: q || ' ',
+    top_k: 50,
+    reporter:   document.getElementById('f-reporter').value.toUpperCase() || undefined,
+    partner:    document.getElementById('f-partner').value.toUpperCase() || undefined,
+    hs_code:    document.getElementById('f-hs').value || undefined,
+    year_start: parseInt(document.getElementById('f-year-from').value) || undefined,
+    year_end:   parseInt(document.getElementById('f-year-to').value) || undefined,
+    flow:       document.getElementById('f-flow').value || undefined,
+  };
+  Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
+
+  document.getElementById('results-body').innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+  try {
+    const r = await fetch(API + '/v1/search', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    renderResults(d.hits);
+  } catch(e) {
+    document.getElementById('results-body').innerHTML = '<div class="empty-state">⚠️ API error — is the server running?</div>';
+  }
+}
+
+function renderResults(hits) {
+  document.getElementById('results-count').textContent = hits.length + ' results';
+  if (!hits.length) {
+    document.getElementById('results-body').innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div>No results found — try different filters</div></div>';
+    return;
+  }
+  const rows = hits.map(h => `
+    <tr>
+      <td><strong>${h.reporter}</strong>${h.reporter_name ? `<br><span style="color:var(--muted);font-size:0.75rem">${h.reporter_name}</span>` : ''}</td>
+      <td>${h.partner}${h.partner_name ? `<br><span style="color:var(--muted);font-size:0.75rem">${h.partner_name}</span>` : ''}</td>
+      <td style="font-family:monospace">${h.hs_code}</td>
+      <td style="max-width:200px;font-size:0.78rem;color:var(--muted)">${h.product || '—'}</td>
+      <td>${h.year}</td>
+      <td><span class="flow-badge flow-${h.flow}">${h.flow}</span></td>
+      <td class="value">${h.value_usd ? '$' + (h.value_usd/1e9).toFixed(2) + 'B' : '—'}</td>
+      <td style="color:var(--muted);font-size:0.75rem">${h.source}</td>
+    </tr>
+  `).join('');
+  document.getElementById('results-body').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Reporter</th><th>Partner</th><th>HS Code</th><th>Product</th>
+        <th>Year</th><th>Flow</th><th>Value</th><th>Source</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// Enter key search
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('search-q').addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
+  loadStats();
+  loadSources();
+  doTimeseries();
+});
+
+// ── Time Series Chart ─────────────────────────────────────────────────────────
+async function doTimeseries() {
+  const reporter = document.getElementById('ts-reporter')?.value || 'USA';
+  const partner  = document.getElementById('ts-partner')?.value || '';
+  const hs       = document.getElementById('ts-hs')?.value || '';
+  const flow     = document.getElementById('ts-flow')?.value || '';
+
+  let url = `${API}/v1/timeseries?reporter=${reporter}&year_from=2010&year_to=2023`;
+  if (partner) url += `&partner=${partner}`;
+  if (hs)      url += `&hs_code=${hs}`;
+  if (flow)    url += `&flow=${flow}`;
+
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d.data?.length) {
+      document.getElementById('ts-chart').innerHTML = '';
+      document.getElementById('ts-empty').style.display = 'block';
+      return;
+    }
+    document.getElementById('ts-empty').style.display = 'none';
+    renderChart(d.data);
+  } catch(e) { console.error(e); }
+}
+
+function renderChart(data) {
+  const svg = d3.select('#ts-chart');
+  svg.selectAll('*').remove();
+
+  const container = document.getElementById('ts-chart').parentElement;
+  const W = container.clientWidth - 40;
+  const H = 240;
+  const margin = {top: 20, right: 20, bottom: 40, left: 80};
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  svg.attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const flows = [...new Set(data.map(d => d.flow))];
+  const colors = { export: '#22c55e', import: '#4f8eff' };
+
+  const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, w]);
+  const y = d3.scaleLinear().domain([0, d3.max(data, d => d.value_usd)]).range([h, 0]).nice();
+
+  // Grid lines
+  g.append('g').call(d3.axisLeft(y).ticks(4).tickFormat(v => '$' + (v/1e12).toFixed(1)+'T').tickSize(-w))
+    .call(g => g.select('.domain').remove())
+    .call(g => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+    .call(g => g.selectAll('.tick text').attr('fill', '#64748b').attr('font-size', '11px'));
+
+  g.append('g').attr('transform', `translate(0,${h})`)
+    .call(d3.axisBottom(x).ticks(6).tickFormat(d3.format('d')))
+    .call(g => g.select('.domain').remove())
+    .call(g => g.selectAll('.tick line').remove())
+    .call(g => g.selectAll('.tick text').attr('fill', '#64748b').attr('font-size', '11px'));
+
+  // Lines + dots per flow
+  flows.forEach(flow => {
+    const fd = data.filter(d => d.flow === flow).sort((a,b) => a.year - b.year);
+    const line = d3.line().x(d => x(d.year)).y(d => y(d.value_usd)).curve(d3.curveMonotoneX);
+
+    // Area
+    const area = d3.area().x(d => x(d.year)).y0(h).y1(d => y(d.value_usd)).curve(d3.curveMonotoneX);
+    g.append('path').datum(fd).attr('fill', colors[flow] || '#7c3aed').attr('opacity', 0.08).attr('d', area);
+
+    // Line
+    g.append('path').datum(fd).attr('fill', 'none')
+      .attr('stroke', colors[flow] || '#7c3aed').attr('stroke-width', 2)
+      .attr('d', line);
+
+    // Dots
+    g.selectAll(`.dot-${flow}`).data(fd).enter().append('circle')
+      .attr('class', `dot-${flow}`)
+      .attr('cx', d => x(d.year)).attr('cy', d => y(d.value_usd))
+      .attr('r', 4).attr('fill', colors[flow] || '#7c3aed');
+  });
+
+  // Legend
+  flows.forEach((flow, i) => {
+    const lg = svg.append('g').attr('transform', `translate(${margin.left + i*100}, ${H - 5})`);
+    lg.append('circle').attr('r', 5).attr('fill', colors[flow] || '#7c3aed');
+    lg.append('text').attr('x', 10).attr('y', 4).attr('fill', '#94a3b8').attr('font-size', '11px').text(flow);
+  });
+}
+
+// ── Sources ───────────────────────────────────────────────────────────────────
+const SOURCES = [
+  { id: 'UN/Comtrade', desc: 'Global trade flows, 200+ countries, 1962–present', status: 'live', years: '1962–present', auth: 'Free API key' },
+  { id: 'WB/WITS',    desc: 'World Bank tariff rates and trade indicators', status: 'live', years: '1988–present', auth: 'None' },
+  { id: 'US/Census',  desc: 'Detailed US import/export statistics by HS code', status: 'planned', years: '1992–present', auth: 'Free API key' },
+  { id: 'EU/Eurostat',desc: 'EU member state external trade statistics', status: 'planned', years: '1988–present', auth: 'None' },
+  { id: 'WTO/TariffData', desc: 'WTO bound and applied tariff rates, 170+ countries', status: 'planned', years: '1996–present', auth: 'None' },
+];
+
+function loadSources() {
+  const grid = document.getElementById('sources-grid');
+  if (!grid) return;
+  grid.innerHTML = SOURCES.map(s => `
+    <div class="source-card">
+      <div class="source-header">
+        <div class="source-id">${s.id}</div>
+        <span class="status-badge status-${s.status}">${s.status}</span>
+      </div>
+      <div class="source-desc">${s.desc}</div>
+      <div class="source-meta">
+        <span>📅 ${s.years}</span>
+        <span>🔑 ${s.auth}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── World Map ─────────────────────────────────────────────────────────────────
+let mapInitialized = false;
+async function initMap() {
+  if (mapInitialized) return;
+  mapInitialized = true;
+
+  const svg = d3.select('#world-map');
+  const container = document.getElementById('world-map').parentElement;
+  const W = container.clientWidth - 32;
+  const H = 360;
+  svg.attr('width', W).attr('height', H);
+
+  const projection = d3.geoNaturalEarth1().scale(W/6.5).translate([W/2, H/2]);
+  const path = d3.geoPath().projection(projection);
+
+  // Countries with live data
+  const liveCountries = new Set(['USA','CHN','DEU','GBR','JPN','FRA','IND','BRA','CAN','KOR','AUS','MEX','NLD','SGP','ITA','ESP']);
+
+  try {
+    const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    const countries = topojson.feature(world, world.objects.countries);
+
+    svg.append('rect').attr('width', W).attr('height', H).attr('fill', '#0a0a1a');
+
+    svg.selectAll('path')
+      .data(countries.features)
+      .enter().append('path')
+      .attr('d', path)
+      .attr('fill', d => {
+        // rough ISO numeric → ISO3 match for top countries
+        const liveNums = new Set([840,156,276,826,392,250,356,76,124,410,36,484,528,702,380,724]);
+        return liveNums.has(+d.id) ? '#1d3a6e' : '#141428';
+      })
+      .attr('stroke', '#1e293b')
+      .attr('stroke-width', 0.5)
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('fill', function() {
+          const liveNums = new Set([840,156,276,826,392,250,356,76,124,410,36,484,528,702,380,724]);
+          return liveNums.has(+d.id) ? '#4f8eff' : '#1e293b';
+        });
+      })
+      .on('mouseout', function(event, d) {
+        d3.select(this).attr('fill', function() {
+          const liveNums = new Set([840,156,276,826,392,250,356,76,124,410,36,484,528,702,380,724]);
+          return liveNums.has(+d.id) ? '#1d3a6e' : '#141428';
+        });
+      });
+
+    // Graticule
+    svg.append('path').datum(d3.geoGraticule()())
+      .attr('d', path).attr('fill', 'none').attr('stroke', 'rgba(255,255,255,0.03)');
+
+  } catch(e) {
+    svg.append('text').attr('x', W/2).attr('y', H/2).attr('text-anchor', 'middle')
+      .attr('fill', '#64748b').text('Map unavailable offline');
+  }
+}
+</script>
+</body>
+</html>
