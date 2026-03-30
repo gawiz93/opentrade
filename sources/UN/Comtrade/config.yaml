@@ -1,0 +1,24 @@
+source_id: UN/Comtrade
+description: "UN Comtrade — global trade flows for 200+ countries, 1962–present"
+country: MULTI
+org: United Nations Statistics Division
+
+data_type: trade_flows
+status: live
+access: api
+url: "https://comtradeapi.un.org/data/v1/get"
+
+auth: api_key
+auth_env: COMTRADE_API_KEY   # optional — free tier works without key (100 req/hr)
+
+rate_limit_rps: 0.8
+rate_limit_daily: 2400       # free tier limit
+
+years_available: "1962-present"
+hs_levels: [2, 4, 6]
+update_frequency: annual
+
+notes: |
+  Free tier: 100 requests/hour, 500 records/request.
+  Premium API key available at comtrade.un.org (removes limits).
+  Uses Comtrade internal numeric reporter codes — mapped to ISO3 in bootstrap.py.

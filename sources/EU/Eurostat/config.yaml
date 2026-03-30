@@ -1,0 +1,23 @@
+source_id: EU/Eurostat
+description: "Eurostat — EU member state external trade statistics (imports/exports)"
+country: MULTI
+org: European Commission — Eurostat
+
+data_type: trade_flows
+status: planned
+access: api
+url: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
+
+auth: none
+rate_limit_rps: 1.0
+rate_limit_daily: 0
+
+years_available: "1988-present"
+hs_levels: [2, 4, 6, 8]
+update_frequency: monthly
+
+notes: |
+  No auth required. Uses SDMX REST API.
+  Dataset: DS-018995 (EU trade since 1988).
+  8-digit CN codes available — more granular than standard HS6.
+  Monthly data available.

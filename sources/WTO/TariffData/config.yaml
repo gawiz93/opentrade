@@ -1,0 +1,22 @@
+source_id: WTO/TariffData
+description: "WTO Tariff Download Facility — MFN and bound tariff rates, 170+ countries"
+country: MULTI
+org: World Trade Organization
+
+data_type: tariffs
+status: planned
+access: bulk_download
+url: "https://tariffdata.wto.org"
+
+auth: none
+rate_limit_rps: 0.5
+rate_limit_daily: 0
+
+years_available: "1996-present"
+hs_levels: [6]
+update_frequency: annual
+
+notes: |
+  Bulk CSV downloads available. No API key needed.
+  Contains both MFN (applied) and bound tariff rates.
+  Key for economists studying trade policy commitments vs applied rates.

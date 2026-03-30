@@ -1,0 +1,21 @@
+source_id: WB/WITS
+description: "World Bank WITS — tariff rates and trade indicators, 170+ countries"
+country: MULTI
+org: World Bank
+
+data_type: tariffs
+status: live
+access: api
+url: "http://wits.worldbank.org/API/V1"
+
+auth: none
+rate_limit_rps: 0.5
+rate_limit_daily: 0
+
+years_available: "1988-present"
+hs_levels: [6]
+update_frequency: annual
+
+notes: |
+  No API key required. Returns MFN and preferential tariff rates.
+  XML format — responses can be large.

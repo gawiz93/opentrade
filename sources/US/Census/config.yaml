@@ -1,0 +1,24 @@
+source_id: US/Census
+description: "US Census Bureau — detailed US import/export statistics by HS code and country"
+country: US
+org: United States Census Bureau
+
+data_type: trade_flows
+status: planned
+access: api
+url: "https://api.census.gov/data/timeseries/intltrade"
+
+auth: api_key
+auth_env: US_CENSUS_API_KEY   # free at api.census.gov/data/key_signup.html
+
+rate_limit_rps: 2.0
+rate_limit_daily: 0
+
+years_available: "1992-present"
+hs_levels: [10]   # 10-digit Schedule B (most granular in the world)
+update_frequency: monthly
+
+notes: |
+  Free API key required (instant signup).
+  10-digit Schedule B codes = far more granular than standard HS6.
+  Monthly data available, not just annual.

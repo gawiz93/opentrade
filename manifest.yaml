@@ -1,0 +1,37 @@
+# OpenTrade Source Manifest
+# Master inventory of all data sources.
+# Updated automatically by runner.py after each successful run.
+
+sources:
+  UN/Comtrade:
+    status: live
+    description: UN Comtrade — global trade flows, 200+ countries, 1962–present
+    records: null
+    last_run: null
+
+  WB/WITS:
+    status: live
+    description: World Bank WITS — tariff rates and trade indicators
+    records: null
+    last_run: null
+
+  US/Census:
+    status: planned
+    description: US Census Bureau — detailed US import/export statistics
+    records: null
+    last_run: null
+
+  EU/Eurostat:
+    status: planned
+    description: Eurostat — EU member state trade statistics
+    records: null
+    last_run: null
+
+  WTO/TariffData:
+    status: planned
+    description: WTO Tariff Download Facility — applied and MFN tariff rates
+    records: null
+    last_run: null
+
+# Add your country's trade data source here!
+# Use: python runner.py add CC/SourceName

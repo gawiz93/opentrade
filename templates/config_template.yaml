@@ -1,0 +1,36 @@
+# Source configuration for CC/SourceName
+# Fill in all fields. See docs/adding-a-source.md for guidance.
+
+source_id: CC/SourceName          # unique identifier — same as directory path
+description: "One-line description of what this source contains"
+country: CC                        # ISO2 country code, or "MULTI" for multi-country
+org: SourceName                    # short organisation name
+
+# Data type: "trade_flows", "tariffs", or "both"
+data_type: trade_flows
+
+# Current status: "live", "planned", "blocked", "partial"
+status: planned
+
+# Access method: "api", "bulk_download", "scrape"
+access: api
+
+# Base URL of the data source
+url: "https://example.com/data"
+
+# Authentication: "none", "api_key", "oauth"
+auth: none
+# If api_key, set env var name:
+# auth_env: MY_SOURCE_API_KEY
+
+# Rate limiting
+rate_limit_rps: 1.0        # requests per second
+rate_limit_daily: 1000     # max requests per day (0 = unlimited)
+
+# Coverage
+years_available: "2010-present"    # e.g. "1995-2023" or "2010-present"
+hs_levels: [2, 4, 6]               # available HS code digit levels
+update_frequency: annual           # annual, monthly, quarterly, daily
+
+# Notes for contributors (known quirks, blockers, tips)
+notes: ""
