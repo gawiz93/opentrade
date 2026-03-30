@@ -11,7 +11,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
 
   api:
     build: .
@@ -21,7 +21,9 @@ services:
       DATABASE_URL: postgresql://opentrade:opentrade@db:5432/opentrade
       COMTRADE_API_KEY: ${COMTRADE_API_KEY:-}
     ports:
-      - "8000:8000"
+      - "0.0.0.0:5575:8000"
+    volumes:
+      - .:/app
     depends_on:
       - db
 

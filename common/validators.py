@@ -5,7 +5,7 @@ Schema validation for trade records.
 import re
 
 VALID_ISO3 = re.compile(r"^[A-Z]{3}$")
-VALID_HS   = re.compile(r"^\d{2,10}$")
+VALID_HS   = re.compile(r"^(\d{2,10}|TOTAL|ALL)$")
 
 
 def validate_trade_record(r: dict) -> list[str]:

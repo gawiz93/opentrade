@@ -19,6 +19,8 @@ hs_levels: [2, 4, 6]
 update_frequency: annual
 
 notes: |
-  Free tier: 100 requests/hour, 500 records/request.
-  Premium API key available at comtrade.un.org (removes limits).
+  ⚠️  A FREE API key is required (no credit card needed).
+  Sign up at: https://comtradeapi.un.org/ → Register → Get API Key
+  Set env var: COMTRADE_API_KEY=your_key
+  Free tier: 100 req/hour, 500 records/request.
   Uses Comtrade internal numeric reporter codes — mapped to ISO3 in bootstrap.py.

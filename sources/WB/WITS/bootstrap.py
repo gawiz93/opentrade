@@ -1,62 +1,81 @@
 """
-World Bank WITS — tariff rates.
+World Bank WITS — trade flows + tariff rates.
 Source: https://wits.worldbank.org/
+No API key required.
 """
 
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[4]))
 
-from common.base_source import BaseSource, TariffRecord
+from common.base_source import BaseSource, TradeRecord
 from common.http_client import HttpClient
 
-BASE_URL = "http://wits.worldbank.org/API/V1/SDMX/V21/datasource/tradestats-tariff"
+BASE = "https://wits.worldbank.org/API/V1/SDMX/V21/datasource/tradestats-trade"
+
+PRIORITY = ["USA", "CHN", "DEU", "IND", "GBR", "FRA", "JPN", "BRA", "CAN", "KOR"]
+
+INDICATORS = {
+    "XPRT-TRD-VL": "export",
+    "MPRT-TRD-VL": "import",
+}
 
 
 class Source(BaseSource):
 
     def __init__(self, config: dict, http_client=None):
         super().__init__(config)
-        self.http = http_client or HttpClient(
-            rate_limit_rps=float(config.get("rate_limit_rps", 0.5)),
-        )
+        self.http = http_client or HttpClient(rate_limit_rps=0.5)
 
     def fetch_all(self):
-        priority = ["USA", "CHN", "DEU", "IND", "GBR", "FRA", "JPN", "BRA"]
-        for country in priority:
-            for year in range(2018, 2024):
-                yield from self._fetch_tariffs(country, year)
+        for country in PRIORITY:
+            for year in [2022, 2021, 2020]:
+                for indicator, flow in INDICATORS.items():
+                    yield from self._fetch(country, year, indicator, flow)
 
     def fetch_updates(self, since_year: int):
-        priority = ["USA", "CHN", "DEU", "IND", "GBR", "FRA", "JPN", "BRA"]
-        for country in priority:
-            yield from self._fetch_tariffs(country, since_year)
+        for country in PRIORITY:
+            for indicator, flow in INDICATORS.items():
+                yield from self._fetch(country, since_year, indicator, flow)
 
-    def normalize(self, raw: dict) -> TariffRecord | None:
+    def normalize(self, raw: dict) -> TradeRecord | None:
         try:
-            return TariffRecord(
-                importer    = raw["importer"],
-                hs_code     = raw["hs_code"],
-                year        = int(raw["year"]),
-                rate_pct    = float(raw["rate"]),
-                tariff_type = "MFN",
-                exporter    = None,
-                source      = "WB/WITS",
+            val = raw.get("value")
+            if val is None:
+                return None
+            return TradeRecord(
+                reporter      = raw["reporter"],
+                partner       = raw.get("partner", "WLD"),
+                hs_code       = raw.get("product", "TOTAL"),
+                year          = int(raw["year"]),
+                flow          = raw["flow"],
+                value_usd     = int(float(val) * 1000),  # WITS reports in thousands USD
+                source        = "WB/WITS",
             )
         except Exception:
             return None
 
-    def _fetch_tariffs(self, country: str, year: int):
-        url = f"{BASE_URL}/reporter/{country}/year/{year}/partner/WLD/product/ALL/indicator/AHS-WGHTD-AVRG"
+    def _fetch(self, country: str, year: int, indicator: str, flow: str):
+        url = f"{BASE}/reporter/{country}/year/{year}/partner/WLD/product/TOTAL/indicator/{indicator}"
         try:
             r = self.http.get(url)
-            # Parse JSON response
-            data = r.json()
-            for obs in data.get("dataSets", [{}])[0].get("observations", {}).values():
-                hs = obs.get("dimensions", {}).get("PRODUCTGROUP", "")
-                rate = obs.get("value")
-                if hs and rate is not None:
-                    raw = {"importer": country, "hs_code": hs, "year": year, "rate": rate}
-                    yield raw
+            ns = {
+                "ss": "http://www.sdmx.org/resources/sdmxml/schemas/v2_1/data/structurespecific",
+                "message": "http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message",
+            }
+            root = ET.fromstring(r.text)
+            for obs in root.iter():
+                if "Obs" in obs.tag:
+                    val = obs.get("OBS_VALUE")
+                    if val:
+                        yield {
+                            "reporter": country,
+                            "partner":  "WLD",
+                            "product":  "TOTAL",
+                            "year":     year,
+                            "flow":     flow,
+                            "value":    val,
+                        }
         except Exception as e:
-            self.logger.error(f"WITS fetch failed {country}/{year}: {e}")
+            self.logger.error(f"WITS fetch failed {country}/{year}/{indicator}: {e}")

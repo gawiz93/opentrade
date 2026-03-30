@@ -22,7 +22,8 @@ class Storage:
             return False
         self._seen.add(key)
 
-        out_path = self.output_dir / f"{source_id}.jsonl"
+        out_path = self.output_dir / f"{source_id.replace('/', '_')}.jsonl"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         row = asdict(record)
         with open(out_path, "a") as f:
             f.write(json.dumps(row) + "\n")
@@ -30,7 +31,7 @@ class Storage:
 
     def read(self, source_id: str):
         """Read all records for a source."""
-        out_path = self.output_dir / f"{source_id}.jsonl"
+        out_path = self.output_dir / f"{source_id.replace('/', '_')}.jsonl"
         if not out_path.exists():
             return
         with open(out_path) as f:
